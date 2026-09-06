@@ -56,7 +56,7 @@ export const useContactsStore = defineStore("contacts", {
     setView(view) {
       this.view = view;
       this.favorite = view === "favorites" ? true : null;
-      this.tag = view.startsWith("label:") ? view.slice(6) : "";
+      this.tag = "";
       this.page = 1;
     },
 
@@ -68,7 +68,7 @@ export const useContactsStore = defineStore("contacts", {
     setTag(tag) {
       this.tag = tag;
       this.favorite = null;
-      this.view = tag ? `label:${tag}` : "all";
+      this.view = "all";
       this.page = 1;
     },
 

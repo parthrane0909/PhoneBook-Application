@@ -27,7 +27,8 @@
         <kbd>/</kbd>
       </label>
       <label class="select-control"><span>Sort</span><select v-model="store.sort" @change="reload"><option value="name_asc">Name A-Z</option><option value="name_desc">Name Z-A</option><option value="recently_viewed">Recently viewed</option><option value="recently_added">Recently added</option><option value="recently_updated">Recently updated</option></select></label>
-      <label class="select-control"><span>Filter</span><select v-model="filterValue" @change="applyFilter"><option value="all">All contacts</option><option value="favorites">Favorites</option><option value="unlabeled">Unlabeled</option><option v-for="tag in store.tags" :key="tag.name" :value="`tag:${tag.name}`">{{ tag.name }}</option></select></label>
+      <label class="select-control"><span>Filter</span><select v-model="filterValue" @change="applyFilter"><option value="all">All contacts</option><option value="favorites">Favorites</option><option value="unlabeled">Unlabeled</option></select></label>
+      <label class="select-control"><span>Tag</span><select v-model="tagFilter" aria-label="Filter by tag" @change="applyTag"><option value="">All Tags</option><option v-for="tag in store.tags" :key="tag.name" :value="tag.name">{{ tag.name }}</option></select></label>
     </div>
 
     <div v-if="store.selectedIds.length" class="bulk-bar">
@@ -42,7 +43,7 @@
       <div v-else-if="store.error" class="state-message error"><p>{{ store.error }}</p><button class="secondary-button" @click="reload">Try again</button></div>
       <div v-else-if="!store.contacts.length" class="state-message"><div class="empty-icon">⌕</div><h3>No contacts here</h3><p>{{ store.search ? "Try a different search." : "Add your first contact to get started." }}</p><button v-if="!store.search" class="secondary-button" @click="showCreateForm = true">Add contact</button></div>
       <table v-else class="contact-table">
-        <thead><tr><th><input type="checkbox" :checked="allSelected" aria-label="Select all contacts" @change="toggleAll" /></th><th>Contact</th><th>Phone</th><th>Email</th><th>Labels</th><th>Updated</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <thead><tr><th><input type="checkbox" :checked="allSelected" aria-label="Select all contacts" @change="toggleAll" /></th><th>Contact</th><th>Phone</th><th>Email</th><th>Tags</th><th>Updated</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>
           <tr v-for="contact in store.contacts" :key="contact.id" class="contact-table-row" @click="openContact(contact)">
             <td @click.stop><input type="checkbox" :checked="store.selectedIds.includes(contact.id)" :aria-label="`Select ${contact.name}`" @change="toggleSelected(contact.id)" /></td>
@@ -69,7 +70,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import ContactDetail from "../components/ContactDetail.vue";
 import ContactForm from "../components/ContactForm.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
@@ -78,6 +79,7 @@ import Pagination from "../components/Pagination.vue";
 import { useContactsStore } from "../stores/contacts";
 
 const route = useRoute();
+const router = useRouter();
 const store = useContactsStore();
 const searchInput = ref(null);
 const showCreateForm = ref(false);
@@ -88,19 +90,22 @@ const showDeleteDialog = ref(false);
 const toast = ref("");
 const deletedContact = ref(null);
 const filterValue = ref("all");
+const tagFilter = ref("");
 let searchTimeout;
 let undoTimeout;
 
-const sectionLabel = computed(() => route.params.tag || route.meta.title || "Contacts");
+const sectionLabel = computed(() => route.meta.title || "Contacts");
 const allSelected = computed(() => store.contacts.length > 0 && store.contacts.every((contact) => store.selectedIds.includes(contact.id)));
 const favoriteCount = computed(() => store.contacts.filter((contact) => contact.is_favorite).length);
 
 function syncRouteView() {
   store.favorite = route.meta.view === "favorites" ? true : null;
-  store.tag = route.meta.view === "label" ? route.params.tag : "";
+  store.tag = typeof route.query.tag === "string" ? route.query.tag : "";
+  store.search = typeof route.query.search === "string" ? route.query.search : "";
   store.unlabeled = false;
   store.recent = route.meta.view === "recent";
-  filterValue.value = route.meta.view === "favorites" ? "favorites" : route.meta.view === "label" ? `tag:${route.params.tag}` : "all";
+  filterValue.value = route.meta.view === "favorites" ? "favorites" : "all";
+  tagFilter.value = store.tag;
   store.sort = route.meta.view === "recent" ? "recently_viewed" : "name_asc";
   store.page = 1;
   store.selectedIds = [];
@@ -110,12 +115,45 @@ function reload() { return store.fetchContacts(); }
 function applyFilter() {
   store.favorite = filterValue.value === "favorites" ? true : null;
   store.unlabeled = filterValue.value === "unlabeled";
-  store.tag = filterValue.value.startsWith("tag:") ? filterValue.value.slice(4) : "";
   store.recent = false;
   store.page = 1;
-  reload();
+  router.replace({
+    path: route.path === "/contacts" ? "/contacts" : route.path,
+    query: {
+      ...route.query,
+      tag: store.tag || undefined,
+      search: store.search || undefined,
+      page: undefined,
+    },
+  });
 }
-function handleSearch() { clearTimeout(searchTimeout); store.page = 1; searchTimeout = setTimeout(reload, 250); }
+function applyTag() {
+  store.tag = tagFilter.value;
+  store.page = 1;
+  router.replace({
+    path: "/contacts",
+    query: {
+      ...route.query,
+      tag: store.tag || undefined,
+      search: store.search || undefined,
+      page: undefined,
+    },
+  });
+}
+function handleSearch() {
+  clearTimeout(searchTimeout);
+  store.page = 1;
+  searchTimeout = setTimeout(() => {
+    router.replace({
+      path: route.path,
+      query: {
+        ...route.query,
+        search: store.search || undefined,
+        page: undefined,
+      },
+    });
+  }, 250);
+}
 function changePage(page) { store.page = page; reload(); }
 function formatDate(value) { return value ? new Date(value).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "-"; }
 function initials(name) { return name.split(" ").map((word) => word[0]).slice(0, 2).join("").toUpperCase(); }

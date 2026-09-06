@@ -102,7 +102,7 @@
         </div>
 
         <div class="form-field">
-          <label for="tags">Labels</label>
+          <label for="tags">Tags</label>
           <LabelSelector v-model="form.tags" />
         </div>
 

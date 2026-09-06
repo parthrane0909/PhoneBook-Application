@@ -9,7 +9,6 @@ const router = createRouter({
     { path: "/contacts", name: "contacts", component: ContactsView, meta: { title: "All contacts", view: "all" } },
     { path: "/favorites", name: "favorites", component: ContactsView, meta: { title: "Favorites", view: "favorites" } },
     { path: "/recently-viewed", name: "recently-viewed", component: ContactsView, meta: { title: "Recently viewed", view: "recent" } },
-    { path: "/labels/:tag", name: "label", component: ContactsView, meta: { title: "Label", view: "label" } },
     { path: "/settings", name: "settings", component: SettingsView, meta: { title: "Settings" } },
   ],
 });

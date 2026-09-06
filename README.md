@@ -8,7 +8,7 @@ A responsive contact workspace built with FastAPI, PostgreSQL, SQLAlchemy, Vue 3
 - Search by name or phone with server-side pagination
 - Favorites and recently viewed contacts persisted in PostgreSQL
 - Sorting by name, recently viewed, recently added, or recently updated
-- Relational labels using `tags` and `contact_tags`
+- Relational tags using `tags` and `contact_tags`
 - Responsive desktop table and mobile contact cards
 - Bulk selection, favorite actions, delete confirmation, and undo
 - Keyboard shortcuts: `/` search, `n` new contact, `Escape` close dialogs
@@ -73,7 +73,7 @@ cd backend
 pytest
 ```
 
-The tests cover contact creation, retrieval, update, deletion, validation, duplicate phone prevention, labels, search, and recently viewed persistence.
+The tests cover contact creation, retrieval, update, deletion, validation, duplicate phone prevention, tags, search, and recently viewed persistence.
 
 ## API Endpoints
 
@@ -90,4 +90,4 @@ The tests cover contact creation, retrieval, update, deletion, validation, dupli
 
 ## Usage
 
-Use the sidebar to switch between all contacts, favorites, recently viewed contacts, labels, and settings. Select a table row to open its detail drawer. Use Import to validate and add a CSV, or Export to download the current filtered contact view using only name, phone number, email, and address fields. Labels are selected or created through the label selector and are stored as relational records.
+Use the sidebar to switch between all contacts, favorites, recently viewed contacts, tags, and settings. Tag names are quick filters for the main Contacts page rather than separate pages. Select a table row to open its detail drawer. Use Import to validate and add a CSV, or Export to download the current filtered contact view using only name, phone number, email, and address fields. Tags are selected or created through the tag selector and are stored as relational records.

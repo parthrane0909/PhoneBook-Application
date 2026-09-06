@@ -1,18 +1,18 @@
 <template>
   <div class="label-selector">
     <div class="selected-labels" aria-live="polite">
-      <button v-for="label in modelValue" :key="label" type="button" class="selected-label" :aria-label="`Remove ${label}`" @click="removeLabel(label)">
-        {{ label }} <span aria-hidden="true">×</span>
+      <button v-for="tag in modelValue" :key="tag" type="button" class="selected-label" :aria-label="`Remove ${tag} tag`" @click="removeLabel(tag)">
+        {{ tag }} <span aria-hidden="true">×</span>
       </button>
-      <span v-if="!modelValue.length" class="label-placeholder">No labels selected</span>
+      <span v-if="!modelValue.length" class="label-placeholder">No tags selected</span>
     </div>
 
     <div class="label-selector-controls">
-      <select aria-label="Choose an existing label" value="" @change="selectLabel">
-        <option value="">Add existing label</option>
+      <select aria-label="Choose an existing tag" value="" @change="selectLabel">
+        <option value="">Add existing tag</option>
         <option v-for="tag in availableTags" :key="tag.id || tag.name" :value="tag.name">{{ tag.name }}</option>
       </select>
-      <input v-model="newLabel" type="text" placeholder="New label" aria-label="New label name" @keydown.enter.prevent="addNewLabel" />
+      <input v-model="newLabel" type="text" placeholder="New tag" aria-label="New tag name" @keydown.enter.prevent="addNewLabel" />
       <button type="button" class="label-add-button" @click="addNewLabel">Add</button>
     </div>
   </div>

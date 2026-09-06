@@ -21,11 +21,9 @@
     </nav>
 
     <div class="sidebar-section">
-      <div class="sidebar-section-title">
-        Labels
-      </div>
+      <div class="sidebar-section-title">Tags</div>
 
-      <RouterLink v-for="tag in tags" :key="tag.name" class="sidebar-item" :to="`/labels/${encodeURIComponent(tag.name)}`" @click="$emit('close')">
+      <RouterLink v-for="tag in tags" :key="tag.name" class="sidebar-item" :to="{ path: '/contacts', query: { tag: tag.name } }" @click="$emit('close')">
         <span class="label-dot"></span><span>{{ tag.name }}</span>
       </RouterLink>
     </div>

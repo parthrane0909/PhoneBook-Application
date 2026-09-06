@@ -83,7 +83,7 @@
           </div>
 
           <div class="information-block">
-            <span class="information-label">LABELS</span>
+            <span class="information-label">TAGS</span>
             <LabelSelector :model-value="detailLabels" @update:model-value="updateLabels" />
           </div>
 
@@ -191,7 +191,7 @@
             </div>
 
             <div class="form-field">
-              <label for="edit-tags">Labels</label>
+              <label for="edit-tags">Tags</label>
               <LabelSelector v-model="form.tags" />
             </div>
 
