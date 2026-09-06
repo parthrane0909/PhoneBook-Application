@@ -2,44 +2,66 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import exists, func, or_
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from ..database import get_db
 from .. import models
+from ..database import get_db
 from ..schemas import (
     ContactCreate,
-    ContactUpdate,
-    ContactResponse,
-    ContactListResponse,
-    ContactMetricsResponse,
-    TagResponse,
     ContactImportRequest,
     ContactImportResponse,
+    ContactListResponse,
+    ContactMetricsResponse,
+    ContactResponse,
+    ContactUpdate,
+    TagResponse,
 )
-
 
 router = APIRouter(
     prefix="/contacts",
-    tags=["Contacts"]
+    tags=["Contacts"],
 )
 
 
 def get_or_create_tags(db: Session, names: list[str]):
-    cleaned_names = list(dict.fromkeys(name.strip() for name in names if name.strip()))
+    """Return existing tags and create only genuinely new tag names.
+
+    Tag matching is case-insensitive so imports such as Work/work do not
+    create two visually identical tags.
+    """
+    cleaned_names = []
+    seen = set()
+
+    for name in names:
+        cleaned = str(name).strip()
+        key = cleaned.lower()
+
+        if not cleaned or key in seen:
+            continue
+
+        seen.add(key)
+        cleaned_names.append(cleaned)
+
     if not cleaned_names:
         return []
 
-    existing = db.query(models.Tag).filter(models.Tag.name.in_(cleaned_names)).all()
+    existing = db.query(models.Tag).filter(
+        func.lower(models.Tag.name).in_([name.lower() for name in cleaned_names])
+    ).all()
     existing_by_name = {tag.name.lower(): tag for tag in existing}
+
     tags = []
 
     for name in cleaned_names:
         tag = existing_by_name.get(name.lower())
+
         if tag is None:
             tag = models.Tag(name=name)
             db.add(tag)
             db.flush()
+            existing_by_name[name.lower()] = tag
+
         tags.append(tag)
 
     return tags
@@ -49,27 +71,26 @@ def get_or_create_tags(db: Session, names: list[str]):
 @router.post("/", response_model=ContactResponse)
 def create_contact(
     contact: ContactCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     new_contact = models.Contact(
         name=contact.name,
         phone_number=contact.phone_number,
         email=contact.email,
-        address=contact.address
+        address=contact.address,
     )
-    new_contact.tags = get_or_create_tags(db, contact.tags)
 
+    new_contact.tags = get_or_create_tags(db, contact.tags)
     db.add(new_contact)
 
     try:
         db.commit()
         db.refresh(new_contact)
-
     except IntegrityError:
         db.rollback()
         raise HTTPException(
             status_code=400,
-            detail="Phone number or email already exists"
+            detail="Phone number or email already exists",
         )
 
     return new_contact
@@ -89,23 +110,22 @@ def get_contacts(
     ),
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     query = db.query(models.Contact)
 
     if search:
         search_pattern = f"%{search.strip()}%"
-
         query = query.filter(
-            (models.Contact.name.ilike(search_pattern)) |
-            (models.Contact.phone_number.ilike(search_pattern)) |
-            exists(
+            (models.Contact.name.ilike(search_pattern))
+            | (models.Contact.phone_number.ilike(search_pattern))
+            | exists(
                 models.contact_tags.join(models.Tag.__table__)
                 .select()
                 .where(
-                    (models.contact_tags.c.contact_id == models.Contact.id) &
-                    (models.contact_tags.c.tag_id == models.Tag.id) &
-                    models.Tag.name.ilike(search_pattern)
+                    (models.contact_tags.c.contact_id == models.Contact.id)
+                    & (models.contact_tags.c.tag_id == models.Tag.id)
+                    & models.Tag.name.ilike(search_pattern)
                 )
             )
         )
@@ -114,10 +134,14 @@ def get_contacts(
         query = query.filter(models.Contact.is_favorite == favorite)
 
     if tag:
-        query = query.join(models.Contact.tags).filter(models.Tag.name.ilike(tag))
+        query = query.join(models.Contact.tags).filter(
+            models.Tag.name.ilike(tag)
+        )
 
     if unlabeled:
-        query = query.outerjoin(models.Contact.tags).filter(models.Tag.id.is_(None))
+        query = query.outerjoin(models.Contact.tags).filter(
+            models.Tag.id.is_(None)
+        )
 
     if recent:
         query = query.filter(models.Contact.last_viewed_at.is_not(None))
@@ -137,33 +161,29 @@ def get_contacts(
         query = query.order_by(models.Contact.name.asc())
 
     total = query.count()
-
     offset = (page - 1) * limit
 
-    contacts = (
-        query
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    contacts = query.offset(offset).limit(limit).all()
 
     return {
         "contacts": contacts,
         "page": page,
         "limit": limit,
-        "total": total
+        "total": total,
     }
 
 
 @router.get("/metrics", response_model=ContactMetricsResponse)
 def get_contact_metrics(db: Session = Depends(get_db)):
     total = db.query(func.count(models.Contact.id)).scalar() or 0
+
     favorites = (
         db.query(func.count(models.Contact.id))
         .filter(models.Contact.is_favorite.is_(True))
         .scalar()
         or 0
     )
+
     unlabeled = (
         db.query(func.count(models.Contact.id))
         .outerjoin(models.Contact.tags)
@@ -171,6 +191,7 @@ def get_contact_metrics(db: Session = Depends(get_db)):
         .scalar()
         or 0
     )
+
     recently_added = (
         db.query(func.count(models.Contact.id))
         .filter(models.Contact.created_at >= datetime.utcnow() - timedelta(days=7))
@@ -209,23 +230,34 @@ def import_contacts(
                     email=contact.email,
                     address=contact.address,
                 )
+
                 new_contact.tags = get_or_create_tags(db, contact.tags)
                 db.add(new_contact)
                 db.flush()
+
             imported += 1
+
         except IntegrityError:
             skipped += 1
-            errors.append({"row": row_number, "reason": "Duplicate phone number or email"})
+            errors.append({
+                "row": row_number,
+                "reason": "Duplicate phone number or email",
+            })
 
     db.commit()
-    return {"imported": imported, "skipped": skipped, "errors": errors}
+
+    return {
+        "imported": imported,
+        "skipped": skipped,
+        "errors": errors,
+    }
 
 
 # READ ONE
 @router.get("/{contact_id}", response_model=ContactResponse)
 def get_contact(
     contact_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     contact = (
         db.query(models.Contact)
@@ -236,7 +268,7 @@ def get_contact(
     if contact is None:
         raise HTTPException(
             status_code=404,
-            detail="Contact not found"
+            detail="Contact not found",
         )
 
     return contact
@@ -247,7 +279,7 @@ def get_contact(
 def update_contact(
     contact_id: int,
     contact_data: ContactUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     contact = (
         db.query(models.Contact)
@@ -258,7 +290,7 @@ def update_contact(
     if contact is None:
         raise HTTPException(
             status_code=404,
-            detail="Contact not found"
+            detail="Contact not found",
         )
 
     update_data = contact_data.model_dump(exclude_unset=True)
@@ -273,12 +305,11 @@ def update_contact(
     try:
         db.commit()
         db.refresh(contact)
-
     except IntegrityError:
         db.rollback()
         raise HTTPException(
             status_code=400,
-            detail="Phone number or email already exists"
+            detail="Phone number or email already exists",
         )
 
     return contact
@@ -288,7 +319,7 @@ def update_contact(
 @router.delete("/{contact_id}")
 def delete_contact(
     contact_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     contact = (
         db.query(models.Contact)
@@ -299,15 +330,13 @@ def delete_contact(
     if contact is None:
         raise HTTPException(
             status_code=404,
-            detail="Contact not found"
+            detail="Contact not found",
         )
 
     db.delete(contact)
     db.commit()
 
-    return {
-        "message": "Contact deleted successfully"
-    }
+    return {"message": "Contact deleted successfully"}
 
 
 @router.patch("/{contact_id}/viewed", response_model=ContactResponse)
@@ -315,7 +344,11 @@ def mark_contact_viewed(
     contact_id: int,
     db: Session = Depends(get_db),
 ):
-    contact = db.query(models.Contact).filter(models.Contact.id == contact_id).first()
+    contact = (
+        db.query(models.Contact)
+        .filter(models.Contact.id == contact_id)
+        .first()
+    )
 
     if contact is None:
         raise HTTPException(status_code=404, detail="Contact not found")
@@ -323,4 +356,5 @@ def mark_contact_viewed(
     contact.last_viewed_at = datetime.utcnow()
     db.commit()
     db.refresh(contact)
+
     return contact
