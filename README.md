@@ -13,6 +13,8 @@ A responsive contact workspace built with FastAPI, PostgreSQL, SQLAlchemy, Vue 3
 - Bulk selection, favorite actions, delete confirmation, and undo
 - Keyboard shortcuts: `/` search, `n` new contact, `Escape` close dialogs
 - Settings for appearance, page size, delete confirmation, and shortcuts
+- CSV export of the active contact view
+- CSV import with header validation, row validation, duplicate detection, and import summaries
 
 ## Project Structure
 
@@ -60,7 +62,7 @@ npm install
 npm run dev
 ```
 
-Set `VITE_API_BASE_URL` when the API is not running at `http://localhost:8000`.
+Local Vite development proxies `/api` to `http://localhost:8000`. Set `VITE_API_PROXY_TARGET` when the backend is running elsewhere. Docker sets this target to the `backend` service.
 
 ## Testing
 
@@ -83,7 +85,9 @@ The tests cover contact creation, retrieval, update, deletion, validation, dupli
 - `PATCH /contacts/{id}/favorite`
 - `PATCH /contacts/{id}/viewed`
 - `GET /contacts/tags`
+- `GET /contacts/metrics`
+- `POST /contacts/import` with validated `name`, `phone_number`, `email`, `address`, and optional `tags`
 
 ## Usage
 
-Use the sidebar to switch between all contacts, favorites, recently viewed contacts, labels, and settings. Select a table row to open its detail drawer. Labels are entered as comma-separated values in the contact forms and are stored as relational records.
+Use the sidebar to switch between all contacts, favorites, recently viewed contacts, labels, and settings. Select a table row to open its detail drawer. Use Import to validate and add a CSV, or Export to download the current filtered contact view using only name, phone number, email, and address fields. Labels are selected or created through the label selector and are stored as relational records.

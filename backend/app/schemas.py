@@ -1,7 +1,9 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from datetime import datetime
 
 class ContactBase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(..., max_length=255)
     phone_number: str = Field(..., max_length=20)
     email: EmailStr | None = None
@@ -14,6 +16,8 @@ class ContactCreate(ContactBase):
 
 
 class ContactUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = Field(None, max_length=255)
     phone_number: str | None = Field(None, max_length=20)
     email: EmailStr | None = None
@@ -25,8 +29,7 @@ class TagResponse(BaseModel):
     id: int
     name: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ContactResponse(BaseModel):
@@ -43,8 +46,7 @@ class ContactResponse(BaseModel):
     updated_at: datetime
     tags: list[TagResponse] = Field(default_factory=list)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ContactListResponse(BaseModel):
@@ -59,6 +61,21 @@ class ContactMetricsResponse(BaseModel):
     favorites: int
     recently_added: int
     unlabeled: int
+
+
+class ContactImportRequest(BaseModel):
+    rows: list[ContactCreate] = Field(..., max_length=5000)
+
+
+class ContactImportError(BaseModel):
+    row: int
+    reason: str
+
+
+class ContactImportResponse(BaseModel):
+    imported: int
+    skipped: int
+    errors: list[ContactImportError] = Field(default_factory=list)
 
 class FavoriteUpdate(BaseModel):
     is_favorite: bool

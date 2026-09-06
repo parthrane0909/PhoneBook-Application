@@ -41,6 +41,18 @@ export const useContactsStore = defineStore("contacts", {
 
   actions: {
 
+    currentQuery(overrides = {}) {
+      return {
+        search: this.search || undefined,
+        favorite: this.favorite === null ? undefined : this.favorite,
+        tag: this.tag || undefined,
+        unlabeled: this.unlabeled || undefined,
+        recent: this.recent || undefined,
+        sort: this.sort,
+        ...overrides,
+      };
+    },
+
     setView(view) {
       this.view = view;
       this.favorite = view === "favorites" ? true : null;
@@ -66,20 +78,17 @@ export const useContactsStore = defineStore("contacts", {
 
       try {
         const response = await api.get("/contacts/", {
-          params: {
-            search: this.search || undefined,
-            favorite: this.favorite === null ? undefined : this.favorite,
-            tag: this.tag || undefined,
-            unlabeled: this.unlabeled || undefined,
-            recent: this.recent || undefined,
-            sort: this.sort,
-            page: this.page,
-            limit: this.limit,
-          },
+          params: this.currentQuery({ page: this.page, limit: this.limit }),
         });
 
         this.contacts = response.data.contacts;
         this.total = response.data.total;
+
+        const lastPage = Math.max(1, Math.ceil(this.total / this.limit));
+        if (this.page > lastPage) {
+          this.page = lastPage;
+          return this.fetchContacts();
+        }
       } catch (error) {
         console.error(error);
         this.error = "Unable to load contacts.";
@@ -100,11 +109,16 @@ export const useContactsStore = defineStore("contacts", {
       return this.metrics;
     },
 
+    async refreshDerivedState() {
+      await Promise.all([this.fetchMetrics(), this.fetchTags()]);
+    },
+
     async createContact(contact) {
       try {
         const response = await api.post("/contacts/", contact);
 
         await this.fetchContacts();
+        await this.refreshDerivedState();
 
         return response.data;
       } catch (error) {
@@ -117,7 +131,12 @@ export const useContactsStore = defineStore("contacts", {
       try {
         const response = await api.put(`/contacts/${id}`, contact);
 
+        const index = this.contacts.findIndex((item) => item.id === id);
+        if (index !== -1) this.contacts[index] = response.data;
+        if (this.selectedContact?.id === id) this.selectedContact = response.data;
+
         await this.fetchContacts();
+        await this.refreshDerivedState();
 
         return response.data;
       } catch (error) {
@@ -132,7 +151,12 @@ export const useContactsStore = defineStore("contacts", {
       try {
         await api.delete(`/contacts/${id}`);
 
+        this.contacts = this.contacts.filter((item) => item.id !== id);
+        this.selectedIds = this.selectedIds.filter((item) => item !== id);
+        this.total = Math.max(0, this.total - 1);
+
         await this.fetchContacts();
+        await this.refreshDerivedState();
       } catch (error) {
         console.error(error);
         throw error;
@@ -151,6 +175,7 @@ export const useContactsStore = defineStore("contacts", {
         });
 
         await this.fetchContacts();
+        await this.refreshDerivedState();
 
         return response.data;
       } catch (error) {
@@ -211,12 +236,70 @@ export const useContactsStore = defineStore("contacts", {
         this.selectedContact = updatedContact;
       }
 
+      this.metrics.favorites += updatedContact.is_favorite ? 1 : -1;
+
+      await this.fetchContacts();
+
       return updatedContact;
     } catch (error) {
       console.error(error);
       throw error;
     }
   },
+
+    async importContacts(rows) {
+      const response = await api.post("/contacts/import", { rows });
+      await this.fetchContacts();
+      await this.refreshDerivedState();
+      return response.data;
+    },
+
+    async deleteContacts(ids) {
+      this.deleting = true;
+      try {
+        await Promise.all(ids.map((id) => api.delete(`/contacts/${id}`)));
+        const selected = new Set(ids);
+        this.contacts = this.contacts.filter((contact) => !selected.has(contact.id));
+        this.selectedIds = this.selectedIds.filter((id) => !selected.has(id));
+        this.total = Math.max(0, this.total - ids.length);
+        await this.fetchContacts();
+        await this.refreshDerivedState();
+      } finally {
+        this.deleting = false;
+      }
+    },
+
+    async exportContacts() {
+      const contacts = [];
+      let page = 1;
+      const limit = 100;
+
+      while (true) {
+        const response = await api.get("/contacts/", {
+          params: this.currentQuery({ page, limit }),
+        });
+        contacts.push(...response.data.contacts);
+        if (contacts.length >= response.data.total || !response.data.contacts.length) break;
+        page += 1;
+      }
+
+      const escapeCsv = (value) => {
+        const text = value == null ? "" : String(value);
+        return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+      };
+      const header = ["name", "phone_number", "email", "address"];
+      const csv = [
+        header.join(","),
+        ...contacts.map((contact) => [contact.name, contact.phone_number, contact.email, contact.address].map(escapeCsv).join(",")),
+      ].join("\r\n");
+      const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "phonebook-contacts.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+      return contacts.length;
+    },
 
   },
 });

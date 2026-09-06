@@ -77,3 +77,26 @@ def test_contact_crud_and_duplicate_phone(client):
 def test_validation_requires_name_and_phone(client):
     response = client.post("/contacts/", json={"name": "Missing phone"})
     assert response.status_code == 422
+
+
+def test_import_validates_rows_and_skips_duplicates(client):
+    response = client.post(
+        "/contacts/import",
+        json={
+            "rows": [
+                {"name": "Imported One", "phone_number": "9000000001", "email": "one@example.com", "address": None, "tags": []},
+                {"name": "Duplicate", "phone_number": "9000000001", "email": "two@example.com", "address": None, "tags": []},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["imported"] == 1
+    assert response.json()["skipped"] == 1
+    assert response.json()["errors"][0]["row"] == 3
+
+    forbidden = client.post(
+        "/contacts/import",
+        json={"rows": [{"name": "Unsafe", "phone_number": "9000000002", "id": 99}]},
+    )
+    assert forbidden.status_code == 422

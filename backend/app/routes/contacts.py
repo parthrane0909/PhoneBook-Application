@@ -14,6 +14,8 @@ from ..schemas import (
     ContactListResponse,
     ContactMetricsResponse,
     TagResponse,
+    ContactImportRequest,
+    ContactImportResponse,
 )
 
 
@@ -178,6 +180,36 @@ def get_contact_metrics(db: Session = Depends(get_db)):
 @router.get("/tags", response_model=list[TagResponse])
 def get_tags(db: Session = Depends(get_db)):
     return db.query(models.Tag).order_by(models.Tag.name.asc()).all()
+
+
+@router.post("/import", response_model=ContactImportResponse)
+def import_contacts(
+    payload: ContactImportRequest,
+    db: Session = Depends(get_db),
+):
+    imported = 0
+    skipped = 0
+    errors = []
+
+    for row_number, contact in enumerate(payload.rows, start=2):
+        try:
+            with db.begin_nested():
+                new_contact = models.Contact(
+                    name=contact.name,
+                    phone_number=contact.phone_number,
+                    email=contact.email,
+                    address=contact.address,
+                )
+                new_contact.tags = get_or_create_tags(db, contact.tags)
+                db.add(new_contact)
+                db.flush()
+            imported += 1
+        except IntegrityError:
+            skipped += 1
+            errors.append({"row": row_number, "reason": "Duplicate phone number or email"})
+
+    db.commit()
+    return {"imported": imported, "skipped": skipped, "errors": errors}
 
 
 # READ ONE

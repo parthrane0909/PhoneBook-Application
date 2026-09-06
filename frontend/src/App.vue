@@ -10,8 +10,14 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import AppSidebar from "./components/AppSidebar.vue";
+import { applyTheme } from "./utils/theme";
 
 const sidebarOpen = ref(false);
+
+onMounted(() => {
+  const preferences = JSON.parse(localStorage.getItem("phonebook-preferences") || "{}");
+  applyTheme(preferences.theme || "system");
+});
 </script>

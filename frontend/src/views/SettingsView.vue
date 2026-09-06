@@ -38,13 +38,21 @@
 </template>
 
 <script setup>
-import { reactive } from "vue";
+import { onMounted, reactive } from "vue";
+import { applyTheme } from "../utils/theme";
+import { useContactsStore } from "../stores/contacts";
 
 const defaults = { theme: "system", limit: 10, confirmDelete: true, shortcuts: true };
 const preferences = reactive({ ...defaults, ...JSON.parse(localStorage.getItem("phonebook-preferences") || "{}") });
+const store = useContactsStore();
 
 function save() {
   localStorage.setItem("phonebook-preferences", JSON.stringify(preferences));
   localStorage.setItem("phonebook-limit", String(preferences.limit));
+  store.limit = preferences.limit;
+  store.page = 1;
+  applyTheme(preferences.theme);
 }
+
+onMounted(() => applyTheme(preferences.theme));
 </script>

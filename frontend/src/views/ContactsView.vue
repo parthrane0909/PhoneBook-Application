@@ -6,7 +6,11 @@
         <h1>{{ sectionLabel }}</h1>
         <p class="page-subtitle">A clear, current view of the people in your circle.</p>
       </div>
-      <button class="primary-button" type="button" @click="showCreateForm = true"><span>+</span> Add contact</button>
+      <div class="header-actions">
+        <button class="secondary-button" type="button" @click="showImport = true">Import</button>
+        <button class="secondary-button" type="button" @click="exportContacts">Export</button>
+        <button class="primary-button" type="button" @click="showCreateForm = true"><span>+</span> Add contact</button>
+      </div>
     </header>
 
     <div class="summary-grid">
@@ -56,6 +60,7 @@
     <Pagination v-if="!store.loading && store.total > 0" :page="store.page" :limit="store.limit" :total="store.total" :total-pages="store.totalPages" @change="changePage" />
 
     <ContactForm v-if="showCreateForm" @close="showCreateForm = false" @created="created" />
+    <ImportContactsDialog v-if="showImport" @close="showImport = false" @imported="imported" />
     <ContactDetail v-if="selectedContact" :contact="selectedContact" @close="selectedContact = null" @updated="updated" @delete="handleDeleteRequest" />
     <ConfirmDialog v-if="showDeleteDialog" :contact="contactToDelete" :loading="store.deleting" @cancel="showDeleteDialog = false" @confirm="confirmDelete" />
     <div v-if="toast" class="toast" role="status">{{ toast }} <button v-if="deletedContact" @click="undoDelete">Undo</button></div>
@@ -68,6 +73,7 @@ import { useRoute } from "vue-router";
 import ContactDetail from "../components/ContactDetail.vue";
 import ContactForm from "../components/ContactForm.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
+import ImportContactsDialog from "../components/ImportContactsDialog.vue";
 import Pagination from "../components/Pagination.vue";
 import { useContactsStore } from "../stores/contacts";
 
@@ -75,6 +81,7 @@ const route = useRoute();
 const store = useContactsStore();
 const searchInput = ref(null);
 const showCreateForm = ref(false);
+const showImport = ref(false);
 const selectedContact = ref(null);
 const contactToDelete = ref(null);
 const showDeleteDialog = ref(false);
@@ -120,12 +127,20 @@ async function bulkFavorite() { await Promise.all(store.contacts.filter((contact
 async function bulkDelete() {
   const ids = [...store.selectedIds];
   if (!ids.length) return;
-  await Promise.all(ids.map((id) => store.deleteContact(id)));
+  await store.deleteContacts(ids);
   store.selectedIds = [];
   toast.value = `${ids.length} contacts deleted`;
   clearToast();
 }
-function handleDeleteRequest(contact) { contactToDelete.value = contact; showDeleteDialog.value = true; }
+async function handleDeleteRequest(contact) {
+  contactToDelete.value = contact;
+  const preferences = JSON.parse(localStorage.getItem("phonebook-preferences") || "{}");
+  if (preferences.confirmDelete === false) {
+    await confirmDelete();
+    return;
+  }
+  showDeleteDialog.value = true;
+}
 async function confirmDelete() { if (!contactToDelete.value) return; const contact = contactToDelete.value; await store.deleteContact(contact.id); deletedContact.value = contact; selectedContact.value = null; contactToDelete.value = null; showDeleteDialog.value = false; toast.value = "Contact deleted"; clearTimeout(undoTimeout); undoTimeout = setTimeout(() => { deletedContact.value = null; toast.value = ""; }, 5000); }
 async function undoDelete() { if (!deletedContact.value) return; await store.restoreContact(deletedContact.value); deletedContact.value = null; toast.value = "Contact restored"; clearToast(); }
 async function created() {
@@ -141,7 +156,28 @@ async function updated(contact) {
   clearToast();
 }
 function clearToast() { setTimeout(() => { if (!deletedContact.value) toast.value = ""; }, 3000); }
-function handleKeydown(event) { const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName); if (event.key === "/" && !typing) { event.preventDefault(); nextTick(() => searchInput.value?.focus()); } if (event.key.toLowerCase() === "n" && !typing) showCreateForm.value = true; if (event.key === "Escape") { showCreateForm.value = false; selectedContact.value = null; showDeleteDialog.value = false; } }
+async function exportContacts() {
+  try {
+    const count = await store.exportContacts();
+    toast.value = count ? `Exported ${count} contacts` : "No contacts to export";
+  } catch {
+    toast.value = "Unable to export contacts";
+  }
+  clearToast();
+}
+function imported(result) {
+  showImport.value = false;
+  toast.value = `Imported ${result.imported}; skipped ${result.skipped}`;
+  clearToast();
+}
+function handleKeydown(event) {
+  const preferences = JSON.parse(localStorage.getItem("phonebook-preferences") || "{}");
+  if (preferences.shortcuts === false) return;
+  const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
+  if (event.key === "/" && !typing) { event.preventDefault(); nextTick(() => searchInput.value?.focus()); }
+  if (event.key.toLowerCase() === "n" && !typing) showCreateForm.value = true;
+  if (event.key === "Escape") { showCreateForm.value = false; showImport.value = false; selectedContact.value = null; showDeleteDialog.value = false; }
+}
 watch(() => route.fullPath, syncRouteView);
 onMounted(() => { store.limit = Number(localStorage.getItem("phonebook-limit")) || store.limit; syncRouteView(); window.addEventListener("keydown", handleKeydown); });
 onBeforeUnmount(() => { clearTimeout(searchTimeout); clearTimeout(undoTimeout); window.removeEventListener("keydown", handleKeydown); });

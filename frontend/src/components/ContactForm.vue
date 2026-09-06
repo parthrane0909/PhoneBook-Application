@@ -53,10 +53,12 @@
             id="phone"
             v-model="form.phone_number"
             type="tel"
+            inputmode="tel"
+            maxlength="16"
             placeholder="+91 98765 43210"
             :class="{ invalid: errors.phone_number }"
+            @input="limitPhoneDigits"
           />
-
           <small v-if="errors.phone_number">
             {{ errors.phone_number }}
           </small>
@@ -175,28 +177,33 @@ const errors = reactive({
 
 
 function validate() {
-
   errors.name = "";
   errors.phone_number = "";
   errors.email = "";
 
   let valid = true;
 
-
   if (!form.name.trim()) {
     errors.name = "Name is required.";
     valid = false;
   }
 
-
   if (!form.phone_number.trim()) {
     errors.phone_number = "Phone number is required.";
     valid = false;
-  } else if (!/^\+?[0-9\s-]{7,20}$/.test(form.phone_number)) {
-    errors.phone_number = "Enter a valid phone number.";
-    valid = false;
-  }
+  } else {
+    const phoneDigits = form.phone_number.replace(/\D/g, "");
 
+    if (
+      phoneDigits.length < 7 ||
+      phoneDigits.length > 15 ||
+      !/^\+?[0-9\s()-]+$/.test(form.phone_number)
+    ) {
+      errors.phone_number =
+        "Enter a valid phone number with 7–15 digits.";
+      valid = false;
+    }
+  }
 
   if (
     form.email &&
@@ -205,7 +212,6 @@ function validate() {
     errors.email = "Enter a valid email address.";
     valid = false;
   }
-
 
   return valid;
 }
@@ -249,6 +255,25 @@ async function submitForm() {
   }
 }
 
+function limitPhoneDigits(event) {
+  let value = event.target.value;
+  let digitCount = 0;
+  let result = "";
+
+  for (const char of value) {
+    if (/[0-9]/.test(char)) {
+      if (digitCount >= 15) {
+        continue;
+      }
+
+      digitCount++;
+    }
+
+    result += char;
+  }
+
+  form.phone_number = result;
+}
 
 function close() {
   if (!saving.value) {
