@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import exists, func, or_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -94,11 +94,20 @@ def get_contacts(
     query = db.query(models.Contact)
 
     if search:
-        search_pattern = f"%{search}%"
+        search_pattern = f"%{search.strip()}%"
 
         query = query.filter(
             (models.Contact.name.ilike(search_pattern)) |
-            (models.Contact.phone_number.ilike(search_pattern))
+            (models.Contact.phone_number.ilike(search_pattern)) |
+            exists(
+                models.contact_tags.join(models.Tag.__table__)
+                .select()
+                .where(
+                    (models.contact_tags.c.contact_id == models.Contact.id) &
+                    (models.contact_tags.c.tag_id == models.Tag.id) &
+                    models.Tag.name.ilike(search_pattern)
+                )
+            )
         )
 
     if favorite is not None:

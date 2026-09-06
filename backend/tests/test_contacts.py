@@ -52,6 +52,14 @@ def test_contact_crud_and_duplicate_phone(client):
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
 
+    tag_search = client.get("/contacts/", params={"search": "work"})
+    assert tag_search.status_code == 200
+    assert tag_search.json()["total"] == 1
+
+    combined_search = client.get("/contacts/", params={"search": "Ada", "tag": "Friends"})
+    assert combined_search.status_code == 200
+    assert combined_search.json()["total"] == 0
+
     metrics = client.get("/contacts/metrics")
     assert metrics.status_code == 200
     assert metrics.json()["total"] == 1
