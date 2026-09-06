@@ -1,0 +1,6 @@
+name,phone_number,email,address,tags,internal_id
+Playwright Invalid Import 1788710350612 Valid,+919000000011,valid-import@example.com,Mumbai,Work,should-ignore
+,+919000000012,missing-name@example.com,Pune,,1
+Playwright Invalid Import 1788710350612 Bad Phone,12,bad-phone@example.com,Delhi,,2
+Playwright Invalid Import 1788710350612 Bad Email,+919000000013,not-an-email,Delhi,,3
+Playwright Invalid Import 1788710350612 Duplicate,+919000000011,duplicate@example.com,Mumbai,,4
