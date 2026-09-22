@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 
-export const apiBaseURL = process.env.PHONEBOOK_API_URL || "http://localhost:8000";
+export const apiBaseURL = process.env.PHONEBOOK_API_URL || "http://localhost:8080/api";
 
 export function uniqueContact(prefix = "Playwright User") {
   const token = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;

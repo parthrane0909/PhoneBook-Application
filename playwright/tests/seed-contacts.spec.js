@@ -7,7 +7,7 @@ test("create contacts up to 1000", async ({ page, request }) => {
 
   // Check how many contacts already exist
   const response = await request.get(
-    "http://localhost:8000/contacts/?page=1&limit=1"
+    "http://localhost:8080/api/contacts/?page=1&limit=1"
   );
 
   const data = await response.json();
